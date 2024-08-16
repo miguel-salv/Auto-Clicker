@@ -1,52 +1,43 @@
-﻿#NoEnv  ; Recommended for performance and compatibility with future AutoHotkey releases.
-; #Warn  ; Enable warnings to assist with detecting common errors.
+﻿#NoEnv
 #SingleInstance Force
-SendMode Input  ; Recommended for new scripts due to its superior speed and reliability.
-SetWorkingDir %A_MyDocuments%  ; Ensures a consistent starting directory.
+SendMode Input
+SetWorkingDir %A_MyDocuments%
 
-; Create directory if it doesn't exist
 if !FileExist(A_MyDocuments "\AutoClicker") {
     FileCreateDir, %A_MyDocuments%\AutoClicker
 }
 
 ; Global variables
-spamKey := "w"  ; Default key to spam/hold
+spamKey := "w"
 isActive := false
-spamDelay := 50  ; Delay between key presses in milliseconds
-maxRandomDelay := 0  ; Maximum additional random delay in milliseconds
-isSpamMode := true  ; True for spam mode, False for hold mode
-clickMode := "Left Click"  ; Default mode is to spam/hold a key
-useRandomDelay := false  ; Whether to use random delay
-hEdit := 0  ; Handle for the Edit control
-iniFile := A_MyDocuments "\AutoClicker\settings.ini"  ; Path to INI file in Documents folder
+spamDelay := 50
+maxRandomDelay := 0
+isSpamMode := true
+clickMode := "Left Click"
+useRandomDelay := false
+hEdit := 0
+iniFile := A_MyDocuments "\AutoClicker\settings.ini"
+IsAlwaysOnTop := true
+isDarkMode := true
+isAcrylic := true
+bgrColor := "000000"
+textColor := "FFFFFF"
 
 ; Change icon
 hIcon := DllCall("LoadImage", uint, 0, str, A_ScriptDir "\icon.ico"
-    , uint, 1, int, 0, int, 0, uint, 0x10)  ; Type, Width, Height, Flags
-Gui +LastFound  ; Set the "last found window" for use in the next lines.
-SendMessage, 0x80, 0, hIcon  ; Set the window's small icon (0x80 is WM_SETICON).
+    , uint, 1, int, 0, int, 0, uint, 0x10)
+Gui +LastFound
+SendMessage, 0x80, 0, hIcon
 
 ; Load settings from INI file
 LoadSettings()
 
 ; Create GUI
+Gui, -DPIScale +Owner +hwndgHwnd
 
-; Acyrlic blur
-Gui, -DPIScale +Owner +hwndhGui
-bgrColor := "222222"
-Gui, Color, c%bgrColor%
-
-dhw := A_DetectHiddenWindows
-DetectHiddenWindows On  ; </Lexikos>
-WinSet, AlwaysOnTop, On, ahk_id %hGui%
-SetAcrylicGlassEffect(bgrColor, 200, hGui)
-DetectHiddenWindows % dhw  ; Lexikos
-
-; Set font and text color for labels and text
+; GUI layout
 Gui, Font, s10, Arial
-
-; Action mode
-Gui, Add, Text, x10 y10 cWhite, Action
+Gui, Add, Text, x10 y10 vActionText, Action
 if (clickMode = "Left Click") {
     Gui, Add, DropDownList, x170 y7 w95 vClickMode gSetMode, Left Click||Right Click|Key|
 } else if (clickMode = "Right Click") {
@@ -55,66 +46,96 @@ if (clickMode = "Left Click") {
     Gui, Add, DropDownList, x170 y7 w95 vClickMode gSetMode, Left Click|Right Click|Key||
 }
 
-; Key
-Gui, Add, Text, x10 y40 cWhite, Key to Spam/Hold
+Gui, Add, Text, x10 y40 vKeyText, Key to Spam/Hold
 if (clickMode = "Key") {
     Gui, Add, Edit, x170 y37 w30 vKeyInput gValidateKey, %spamKey%
 } else {
     Gui, Add, Edit, x170 y37 w30 vKeyInput gValidateKey Disabled, %spamKey%
 }
 
-; Delay
-Gui, Add, Text, x10 y70 cWhite, Delay (ms)
+Gui, Add, Text, x10 y70 vDelayText, Delay (ms)
 Gui, Add, Edit, x170 y67 w50 vDelayInput gSetDelay Number, %spamDelay%
 
-; Random Delay
-Gui, Add, Text, x10 y100 cWhite, Random Delay (ms)
+Gui, Add, Text, x10 y100 vRandomText, Random Delay (ms)
 Gui, Add, CheckBox, x132 y100 vRandomDelay gSetRandomDelay, 
 if (useRandomDelay) {
     GuiControl,, RandomDelay, Checked
 }
 Gui, Add, Edit, x170 y100 w50 vMaxRandomDelay gSetMaxRandomDelay Number, %maxRandomDelay%
 
-; Spam Mode
 if (isSpamMode) {
-    Gui, Add, Text, x10 y130 cWhite, Spam
-    Gui, Add, Text, x84 y130 cWhite, Hold
+    Gui, Add, Text, x10 y130 vSpamText, Spam
+    Gui, Add, Text, x84 y130 vHoldText, Hold
     Gui, Add, Radio, x52 y130 vSpamMode gSetMode Checked,
     Gui, Add, Radio, x119 y130 vHoldMode gSetMode,
 } else {
-    Gui, Add, Text, x10 y130 cWhite, Spam
-    Gui, Add, Text, x84 y130 cWhite, Hold
+    Gui, Add, Text, x10 y130 vSpamText, Spam
+    Gui, Add, Text, x84 y130 vHoldText, Hold
     Gui, Add, Radio, x52 y130 vSpamMode gSetMode,
     Gui, Add, Radio, x119 y130 vHoldMode gSetMode Checked,
 }
-
-; Start Button
 Gui, Add, Button, x10 y160 w250 h30 vToggleButton gToggleAction, Start (F6)
 
-; Start GUI
+UpdateTheme()
 Gui, Show, w270 h200, Auto Clicker
 
-; Get the handle for the Edit control
 GuiControlGet, hEdit, Hwnd, KeyInput
-
-; Hide the caret permanently
 DllCall("HideCaret", "Int", hEdit)
 
 ; Create a custom tray menu
 Menu, Tray, NoStandard
 Menu, Tray, Add, Show GUI, ShowGUI
+Menu, Tray, Add, Always on Top, ToggleAlwaysOnTop
+Menu, Tray, Add, Dark Mode, ToggleDarkMode
+Menu, Tray, Add, Acrylic Effect, ToggleAcrylicEffect
 Menu, Tray, Add, Exit, GuiClose
 Menu, Tray, Default, Show GUI
 
+; Set initial tray checks
+if (IsAlwaysOnTop) {
+    Menu, Tray, ToggleCheck, Always on Top
+    Gui, +AlwaysOnTop
+}
+if (isDarkMode) {
+    Menu, Tray, ToggleCheck, Dark Mode
+}
+if (isAcrylic) {
+    Menu, Tray, ToggleCheck, Acrylic Effect
+    EnableBlur(gHwnd)
+}
+
+return
+
+ToggleAlwaysOnTop:
+    IsAlwaysOnTop := !IsAlwaysOnTop
+    if (IsAlwaysOnTop) {
+        Gui, +AlwaysOnTop
+    } else {
+        Gui, -AlwaysOnTop
+    }
+    Menu, Tray, ToggleCheck, Always on Top
+    SaveSettings()  ; Save settings when changed
+return
+
+ToggleDarkMode:
+    isDarkMode := !isDarkMode
+    UpdateTheme()  ; Update the theme based on the new dark mode state
+    Menu, Tray, ToggleCheck, Dark Mode
+    SaveSettings()  ; Save settings when changed
+return
+
+ToggleAcrylicEffect:
+    isAcrylic := !isAcrylic
+    UpdateTheme()
+    Menu, Tray, ToggleCheck, Acrylic Effect
+    SaveSettings()  ; Save settings when changed
 return
 
 ValidateKey:
-    ; Hide the caret (redundant, but ensures it's always hidden)
     DllCall("HideCaret", "Int", hEdit)
-
     GuiControlGet, KeyInput
     if (StrLen(KeyInput) != 1 || !RegExMatch(KeyInput, "^[a-zA-Z]$")) {
-        KeyInput := SubStr(KeyInput, 1, 1)  ; Truncate input to the first character if invalid
+        KeyInput := SubStr(KeyInput, 1, 1)
         GuiControl,, KeyInput, %KeyInput%
         spamKey := KeyInput
     } else {
@@ -125,19 +146,19 @@ return
 SetDelay:
     Gui, Submit, NoHide
     spamDelay := DelayInput
-    SaveSettings()  ; Save settings when changed
+    SaveSettings()
 return
 
 SetMaxRandomDelay:
     Gui, Submit, NoHide
     maxRandomDelay := MaxRandomDelay
-    SaveSettings()  ; Save settings when changed
+    SaveSettings()
 return
 
 SetRandomDelay:
     Gui, Submit, NoHide
     useRandomDelay := RandomDelay
-    SaveSettings()  ; Save settings when changed
+    SaveSettings()
 return
 
 SetMode:
@@ -150,9 +171,9 @@ SetMode:
         GuiControl, Disable, KeyInput
     }
     if (isActive) {
-        Gosub, ToggleAction ; Reset the current action if it's active
+        Gosub, ToggleAction
     }
-    SaveSettings()  ; Save settings when changed
+    SaveSettings()
 return
 
 ToggleAction:
@@ -211,10 +232,9 @@ ShowGUI:
 return
 
 GuiClose:
-    SaveSettings()  ; Save settings when the GUI is closed
+    SaveSettings()
     ExitApp
 
-; Ensure the key or mouse button is released when the script exits
 OnExit("ExitFunc")
 ExitFunc(ExitReason, ExitCode)
 {
@@ -230,7 +250,6 @@ ExitFunc(ExitReason, ExitCode)
     }
 }
 
-; Function to save settings to INI file
 SaveSettings() {
     global
     IniWrite, %spamKey%, %iniFile%, Settings, SpamKey
@@ -239,9 +258,11 @@ SaveSettings() {
     IniWrite, %useRandomDelay%, %iniFile%, Settings, UseRandomDelay
     IniWrite, %clickMode%, %iniFile%, Settings, ClickMode
     IniWrite, %isSpamMode%, %iniFile%, Settings, IsSpamMode
+    IniWrite, %IsAlwaysOnTop%, %iniFile%, Settings, IsAlwaysOnTop
+    IniWrite, %isDarkMode%, %iniFile%, Settings, isDarkMode
+    IniWrite, %isAcrylic%, %iniFile%, Settings, isAcrylic
 }
 
-; Function to load settings from INI file
 LoadSettings() {
     global
     IniRead, spamKey, %iniFile%, Settings, SpamKey, w
@@ -250,43 +271,58 @@ LoadSettings() {
     IniRead, useRandomDelay, %iniFile%, Settings, UseRandomDelay, 0
     IniRead, clickMode, %iniFile%, Settings, ClickMode, Left Click
     IniRead, isSpamMode, %iniFile%, Settings, IsSpamMode, 1
+    IniRead, IsAlwaysOnTop, %iniFile%, Settings, IsAlwaysOnTop, true
+    IniRead, isDarkMode, %iniFile%, Settings, isDarkMode, true
+    IniRead, isAcrylic, %iniFile%, Settings, isAcrylic, true
 }
 
-ConvertToBGRfromRGB(RGB) { ; Get numeric BGR value from numeric RGB value or HTML color name
-  ; HEX values
-  BGR := SubStr(RGB, -1, 2) SubStr(RGB, 1, 4) 
-  Return BGR 
+EnableBlur(gHwnd, enable := true)
+{
+    ; WindowCompositionAttribute
+    WCA_ACCENT_POLICY := 19
+    
+    ; AccentState
+    ACCENT_DISABLED := 0,
+    ACCENT_ENABLE_GRADIENT := 1,
+    ACCENT_ENABLE_TRANSPARENTGRADIENT := 2
+    ACCENT_ENABLE_BLURBEHIND := 3
+    ACCENT_INVALID_STATE := 4
+
+    accentStructSize := VarSetCapacity(AccentPolicy, 4*4, 0)
+    NumPut(ACCENT_ENABLE_BLURBEHIND * enable, AccentPolicy, 0, "UInt")
+
+    padding := A_PtrSize == 8 ? 4 : 0
+    VarSetCapacity(WindowCompositionAttributeData, 4 + padding + A_PtrSize + 4 + padding)
+    NumPut(WCA_ACCENT_POLICY, WindowCompositionAttributeData, 0, "UInt")
+    NumPut(&AccentPolicy, WindowCompositionAttributeData, 4 + padding, "Ptr")
+    NumPut(accentStructSize, WindowCompositionAttributeData, 4 + padding + A_PtrSize, "UInt")
+    
+    DllCall("SetWindowCompositionAttribute", "Ptr", gHwnd, "Ptr", &WindowCompositionAttributeData)
 }
 
-SetAcrylicGlassEffect(thisColor, thisAlpha, hWindow) {
-  ; based on https://github.com/jNizM/AHK_TaskBar_SetAttr/blob/master/scr/TaskBar_SetAttr.ahk
-  ; by jNizM
-    initialAlpha := thisAlpha
-    If (thisAlpha<16)
-       thisAlpha := 16
-    Else If (thisAlpha>245)
-       thisAlpha := 245
-
-
-    ; Lexikos: Keep original value of thisAlpha for use below.
-    gradient_color := Format("{1:#x}{}", thisAlpha, ConvertToBGRfromRGB(thisColor))
-
-    Static init, accent_state := 4, ver := DllCall("GetVersion") & 0xff < 10
-    Static pad := A_PtrSize = 8 ? 4 : 0, WCA_ACCENT_POLICY := 19
-    accent_size := VarSetCapacity(ACCENT_POLICY, 16, 0)
-    NumPut(accent_state, ACCENT_POLICY, 0, "int")
-
-    If (RegExMatch(gradient_color, "0x[[:xdigit:]]{8}"))
-       NumPut(gradient_color, ACCENT_POLICY, 8, "int")
-
-    VarSetCapacity(WINCOMPATTRDATA, 4 + pad + A_PtrSize + 4 + pad, 0)
-    && NumPut(WCA_ACCENT_POLICY, WINCOMPATTRDATA, 0, "int")
-    && NumPut(&ACCENT_POLICY, WINCOMPATTRDATA, 4 + pad, "ptr")
-    && NumPut(accent_size, WINCOMPATTRDATA, 4 + pad + A_PtrSize, "uint")
-    If !(DllCall("user32\SetWindowCompositionAttribute", "ptr", hWindow, "ptr", &WINCOMPATTRDATA))
-       Return 0 
-    thisOpacity := (initialAlpha<16) ? 60 + initialAlpha*9 : 250
-    ; Lexikos: Use TransColor instead of Transparent.
-    WinSet, TransColor, %thisColor% %thisOpacity%, ahk_id %hWindow%
-    Return 1
+UpdateTheme() {
+    global
+    if (isDarkMode) {
+        if (isAcrylic) {
+            bgrColor := "000000"
+        } else {
+            bgrColor := "222222"
+        }
+        textColor := "FFFFFF"
+    } else {
+        if (isAcrylic) {
+            bgrColor := "AAAAAA"
+        } else {
+            bgrColor := "EEEEEE"
+        }
+        textColor := "000000"
+    }
+    Gui, Color, c%bgrColor%
+    GuiControl, +c%textColor%, ActionText
+    GuiControl, +c%textColor%, KeyText
+    GuiControl, +c%textColor%, DelayText
+    GuiControl, +c%textColor%, RandomText
+    GuiControl, +c%textColor%, SpamText
+    GuiControl, +c%textColor%, HoldText
+    EnableBlur(gHwnd, isAcrylic)
 }
