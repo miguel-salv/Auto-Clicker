@@ -1,8 +1,8 @@
-﻿#NoEnv
-#Warn
+﻿#NoEnv  ; Recommended for performance and compatibility with future AutoHotkey releases.
+; #Warn  ; Enable warnings to assist with detecting common errors.
 #SingleInstance Force
-SendMode Input
-SetWorkingDir %A_MyDocuments%
+SendMode Input  ; Recommended for new scripts due to its superior speed and reliability.
+SetWorkingDir %A_MyDocuments%  ; Ensures a consistent starting directory.
 
 ; Create directory if it doesn't exist
 if !FileExist(A_MyDocuments "\AutoClicker") {
@@ -10,29 +10,43 @@ if !FileExist(A_MyDocuments "\AutoClicker") {
 }
 
 ; Global variables
-spamKey := "w"
+spamKey := "w"  ; Default key to spam/hold
 isActive := false
-spamDelay := 50
-maxRandomDelay := 0
-isSpamMode := true
-clickMode := "Left Click"
-useRandomDelay := false
-hEdit := 0
-iniFile := A_MyDocuments "\AutoClicker\settings.ini"
+spamDelay := 50  ; Delay between key presses in milliseconds
+maxRandomDelay := 0  ; Maximum additional random delay in milliseconds
+isSpamMode := true  ; True for spam mode, False for hold mode
+clickMode := "Left Click"  ; Default mode is to spam/hold a key
+useRandomDelay := false  ; Whether to use random delay
+hEdit := 0  ; Handle for the Edit control
+iniFile := A_MyDocuments "\AutoClicker\settings.ini"  ; Path to INI file in Documents folder
 
 ; Change icon
-hIcon := DllCall("LoadImage", uint, 0, str, A_ScriptDir "\icon.ico", uint, 1, int, 0, int, 0, uint, 0x10)
-Gui +LastFound
-SendMessage, 0x80, 0, hIcon
+hIcon := DllCall("LoadImage", uint, 0, str, A_ScriptDir "\icon.ico"
+    , uint, 1, int, 0, int, 0, uint, 0x10)  ; Type, Width, Height, Flags
+Gui +LastFound  ; Set the "last found window" for use in the next lines.
+SendMessage, 0x80, 0, hIcon  ; Set the window's small icon (0x80 is WM_SETICON).
 
 ; Load settings from INI file
 LoadSettings()
 
 ; Create GUI
-Gui, Font, s10, Arial
+
+; Acyrlic blur
+Gui, -DPIScale +Owner +hwndhGui
+bgrColor := "222222"
+Gui, Color, c%bgrColor%
+
+dhw := A_DetectHiddenWindows
+DetectHiddenWindows On  ; </Lexikos>
+WinSet, AlwaysOnTop, On, ahk_id %hGui%
+SetAcrylicGlassEffect(bgrColor, 200, hGui)
+DetectHiddenWindows % dhw  ; Lexikos
 
 ; Set font and text color for labels and text
-Gui, Add, Text, x10 y10, Action
+Gui, Font, s10, Arial
+
+; Action mode
+Gui, Add, Text, x10 y10 cWhite, Action
 if (clickMode = "Left Click") {
     Gui, Add, DropDownList, x170 y7 w95 vClickMode gSetMode, Left Click||Right Click|Key|
 } else if (clickMode = "Right Click") {
@@ -41,34 +55,43 @@ if (clickMode = "Left Click") {
     Gui, Add, DropDownList, x170 y7 w95 vClickMode gSetMode, Left Click|Right Click|Key||
 }
 
-Gui, Add, Text, x10 y40, Key to Spam/Hold
+; Key
+Gui, Add, Text, x10 y40 cWhite, Key to Spam/Hold
 if (clickMode = "Key") {
     Gui, Add, Edit, x170 y37 w30 vKeyInput gValidateKey, %spamKey%
 } else {
     Gui, Add, Edit, x170 y37 w30 vKeyInput gValidateKey Disabled, %spamKey%
 }
 
-Gui, Add, Text, x10 y70, Delay (ms)
+; Delay
+Gui, Add, Text, x10 y70 cWhite, Delay (ms)
 Gui, Add, Edit, x170 y67 w50 vDelayInput gSetDelay Number, %spamDelay%
 
+; Random Delay
+Gui, Add, Text, x10 y100 cWhite, Random Delay (ms)
+Gui, Add, CheckBox, x132 y100 vRandomDelay gSetRandomDelay, 
 if (useRandomDelay) {
-    Gui, Add, CheckBox, x10 y100 vRandomDelay gSetRandomDelay Checked, Random Delay (ms)
-} else {
-    Gui, Add, CheckBox, x10 y100 vRandomDelay gSetRandomDelay, Random Delay (ms)
+    GuiControl,, RandomDelay, Checked
 }
+Gui, Add, Edit, x170 y100 w50 vMaxRandomDelay gSetMaxRandomDelay Number, %maxRandomDelay%
 
-Gui, Add, Edit, x170 y97 w50 vMaxRandomDelay gSetMaxRandomDelay Number, %maxRandomDelay%
-
+; Spam Mode
 if (isSpamMode) {
-    Gui, Add, Radio, x10 y130 vSpamMode gSetMode Checked, Spam
-    Gui, Add, Radio, x75 y130 vHoldMode gSetMode, Hold
+    Gui, Add, Text, x10 y130 cWhite, Spam
+    Gui, Add, Text, x84 y130 cWhite, Hold
+    Gui, Add, Radio, x52 y130 vSpamMode gSetMode Checked,
+    Gui, Add, Radio, x119 y130 vHoldMode gSetMode,
 } else {
-    Gui, Add, Radio, x10 y130 vSpamMode gSetMode, Spam
-    Gui, Add, Radio, x75 y130 vHoldMode gSetMode Checked, Hold
+    Gui, Add, Text, x10 y130 cWhite, Spam
+    Gui, Add, Text, x84 y130 cWhite, Hold
+    Gui, Add, Radio, x52 y130 vSpamMode gSetMode,
+    Gui, Add, Radio, x119 y130 vHoldMode gSetMode Checked,
 }
 
+; Start Button
 Gui, Add, Button, x10 y160 w250 h30 vToggleButton gToggleAction, Start (F6)
 
+; Start GUI
 Gui, Show, w270 h200, Auto Clicker
 
 ; Get the handle for the Edit control
@@ -77,9 +100,6 @@ GuiControlGet, hEdit, Hwnd, KeyInput
 ; Hide the caret permanently
 DllCall("HideCaret", "Int", hEdit)
 
-; Apply acrylic effect
-SetAcrylicGlassEffect("000022", 125, WinExist())
-
 ; Create a custom tray menu
 Menu, Tray, NoStandard
 Menu, Tray, Add, Show GUI, ShowGUI
@@ -87,44 +107,6 @@ Menu, Tray, Add, Exit, GuiClose
 Menu, Tray, Default, Show GUI
 
 return
-
-; Function to set acrylic background
-SetAcrylicGlassEffect(thisColor, thisAlpha, hWindow) {
-    initialAlpha := thisAlpha
-    If (thisAlpha < 16)
-        thisAlpha := 16
-    Else If (thisAlpha > 245)
-        thisAlpha := 245
-
-    thisColor := ConvertToBGRfromRGB(thisColor)
-    thisAlpha := Format("{1:#x}", thisAlpha)
-    gradient_color := thisAlpha . thisColor
-
-    Static init, accent_state := 4, ver := DllCall("GetVersion") & 0xff < 10
-    Static pad := A_PtrSize = 8 ? 4 : 0, WCA_ACCENT_POLICY := 19
-    accent_size := VarSetCapacity(ACCENT_POLICY, 16, 0)
-    NumPut(accent_state, ACCENT_POLICY, 0, "int")
-
-    If (RegExMatch(gradient_color, "0x[[:xdigit:]]{8}"))
-        NumPut(gradient_color, ACCENT_POLICY, 8, "int")
-
-    VarSetCapacity(WINCOMPATTRDATA, 4 + pad + A_PtrSize + 4 + pad, 0)
-    && NumPut(WCA_ACCENT_POLICY, WINCOMPATTRDATA, 0, "int")
-    && NumPut(&ACCENT_POLICY, WINCOMPATTRDATA, 4 + pad, "ptr")
-    && NumPut(accent_size, WINCOMPATTRDATA, 4 + pad + A_PtrSize, "uint")
-    If !(DllCall("user32\SetWindowCompositionAttribute", "ptr", hWindow, "ptr", &WINCOMPATTRDATA))
-        Return 0 
-    thisOpacity := (initialAlpha < 16) ? 60 + initialAlpha * 9 : 250
-    WinSet, Transparent, %thisOpacity%, ahk_id %hWindow%
-    Return 1
-}
-
-; Function to convert RGB to BGR
-ConvertToBGRfromRGB(RGB) {
-    BGR := SubStr(RGB, -1, 2) . SubStr(RGB, 1, 4)
-    Return BGR
-}
-
 
 ValidateKey:
     ; Hide the caret (redundant, but ensures it's always hidden)
@@ -268,4 +250,43 @@ LoadSettings() {
     IniRead, useRandomDelay, %iniFile%, Settings, UseRandomDelay, 0
     IniRead, clickMode, %iniFile%, Settings, ClickMode, Left Click
     IniRead, isSpamMode, %iniFile%, Settings, IsSpamMode, 1
+}
+
+ConvertToBGRfromRGB(RGB) { ; Get numeric BGR value from numeric RGB value or HTML color name
+  ; HEX values
+  BGR := SubStr(RGB, -1, 2) SubStr(RGB, 1, 4) 
+  Return BGR 
+}
+
+SetAcrylicGlassEffect(thisColor, thisAlpha, hWindow) {
+  ; based on https://github.com/jNizM/AHK_TaskBar_SetAttr/blob/master/scr/TaskBar_SetAttr.ahk
+  ; by jNizM
+    initialAlpha := thisAlpha
+    If (thisAlpha<16)
+       thisAlpha := 16
+    Else If (thisAlpha>245)
+       thisAlpha := 245
+
+
+    ; Lexikos: Keep original value of thisAlpha for use below.
+    gradient_color := Format("{1:#x}{}", thisAlpha, ConvertToBGRfromRGB(thisColor))
+
+    Static init, accent_state := 4, ver := DllCall("GetVersion") & 0xff < 10
+    Static pad := A_PtrSize = 8 ? 4 : 0, WCA_ACCENT_POLICY := 19
+    accent_size := VarSetCapacity(ACCENT_POLICY, 16, 0)
+    NumPut(accent_state, ACCENT_POLICY, 0, "int")
+
+    If (RegExMatch(gradient_color, "0x[[:xdigit:]]{8}"))
+       NumPut(gradient_color, ACCENT_POLICY, 8, "int")
+
+    VarSetCapacity(WINCOMPATTRDATA, 4 + pad + A_PtrSize + 4 + pad, 0)
+    && NumPut(WCA_ACCENT_POLICY, WINCOMPATTRDATA, 0, "int")
+    && NumPut(&ACCENT_POLICY, WINCOMPATTRDATA, 4 + pad, "ptr")
+    && NumPut(accent_size, WINCOMPATTRDATA, 4 + pad + A_PtrSize, "uint")
+    If !(DllCall("user32\SetWindowCompositionAttribute", "ptr", hWindow, "ptr", &WINCOMPATTRDATA))
+       Return 0 
+    thisOpacity := (initialAlpha<16) ? 60 + initialAlpha*9 : 250
+    ; Lexikos: Use TransColor instead of Transparent.
+    WinSet, TransColor, %thisColor% %thisOpacity%, ahk_id %hWindow%
+    Return 1
 }
