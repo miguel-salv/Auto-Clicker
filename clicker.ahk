@@ -15,7 +15,6 @@ maxRandomDelay := 0
 isSpamMode := true
 clickMode := "Left Click"
 useRandomDelay := false
-hEdit := 0
 iniFile := A_MyDocuments "\AutoClicker\settings.ini"
 IsAlwaysOnTop := true
 isDarkMode := true
@@ -24,8 +23,7 @@ bgrColor := "000000"
 textColor := "FFFFFF"
 
 ; Change icon
-hIcon := DllCall("LoadImage", uint, 0, str, A_ScriptDir "\icon.ico"
-    , uint, 1, int, 0, int, 0, uint, 0x10)
+hIcon := DllCall("LoadImage", uint, 0, str, A_ScriptDir "\icon.ico", uint, 1, int, 0, int, 0, uint, 0x10)
 Gui +LastFound
 SendMessage, 0x80, 0, hIcon
 
@@ -34,11 +32,11 @@ LoadSettings()
 
 ; Create GUI
 Gui, -DPIScale +Owner +hwndgHwnd
+Gui, Font, s10, Arial
 
 ; GUI layout
-Gui, Font, s10, Arial
 Gui, Add, Text, x10 y10 vActionText, Action
-if (clickMode = "Left Click") {
+if (clickMode == "Left Click") {
     Gui, Add, DropDownList, x170 y7 w95 vClickMode gSetMode, Left Click||Right Click|Key|
 } else if (clickMode = "Right Click") {
     Gui, Add, DropDownList, x170 y7 w95 vClickMode gSetMode, Left Click|Right Click||Key|
@@ -47,33 +45,32 @@ if (clickMode = "Left Click") {
 }
 
 Gui, Add, Text, x10 y40 vKeyText, Key to Spam/Hold
-if (clickMode = "Key") {
-    Gui, Add, Edit, x170 y37 w30 vKeyInput gValidateKey, %spamKey%
-} else {
-    Gui, Add, Edit, x170 y37 w30 vKeyInput gValidateKey Disabled, %spamKey%
+Gui, Add, Edit, x170 y37 w30 vKeyInput gValidateKey, %spamKey%
+if (clickMode != "Key") {
+    GuiControl, Disable, KeyInput
 }
 
 Gui, Add, Text, x10 y70 vDelayText, Delay (ms)
 Gui, Add, Edit, x170 y67 w50 vDelayInput gSetDelay Number, %spamDelay%
 
 Gui, Add, Text, x10 y100 vRandomText, Random Delay (ms)
-Gui, Add, CheckBox, x132 y100 vRandomDelay gSetRandomDelay, 
+Gui, Add, CheckBox, x132 y100 vRandomDelay gSetRandomDelay
 if (useRandomDelay) {
-    GuiControl,, RandomDelay, Checked
+    GuiControl,, RandomDelay, 1
 }
 Gui, Add, Edit, x170 y100 w50 vMaxRandomDelay gSetMaxRandomDelay Number, %maxRandomDelay%
 
+Gui, Add, Text, x10 y130 vSpamText, Spam
+Gui, Add, Text, x84 y130 vHoldText, Hold
+Gui, Add, Radio, x52 y130 vSpamMode gSetMode
 if (isSpamMode) {
-    Gui, Add, Text, x10 y130 vSpamText, Spam
-    Gui, Add, Text, x84 y130 vHoldText, Hold
-    Gui, Add, Radio, x52 y130 vSpamMode gSetMode Checked,
-    Gui, Add, Radio, x119 y130 vHoldMode gSetMode,
-} else {
-    Gui, Add, Text, x10 y130 vSpamText, Spam
-    Gui, Add, Text, x84 y130 vHoldText, Hold
-    Gui, Add, Radio, x52 y130 vSpamMode gSetMode,
-    Gui, Add, Radio, x119 y130 vHoldMode gSetMode Checked,
+    GuiControl,, SpamMode, 1
 }
+Gui, Add, Radio, x119 y130 vHoldMode gSetMode
+if (!isSpamMode) {
+    GuiControl,, HoldMode, 1
+}
+
 Gui, Add, Button, x10 y160 w250 h30 vToggleButton gToggleAction, Start (F6)
 
 UpdateTheme()
@@ -114,21 +111,21 @@ ToggleAlwaysOnTop:
         Gui, -AlwaysOnTop
     }
     Menu, Tray, ToggleCheck, Always on Top
-    SaveSettings()  ; Save settings when changed
+    SaveSettings()
 return
 
 ToggleDarkMode:
     isDarkMode := !isDarkMode
-    UpdateTheme()  ; Update the theme based on the new dark mode state
+    UpdateTheme()
     Menu, Tray, ToggleCheck, Dark Mode
-    SaveSettings()  ; Save settings when changed
+    SaveSettings()
 return
 
 ToggleAcrylicEffect:
     isAcrylic := !isAcrylic
     UpdateTheme()
     Menu, Tray, ToggleCheck, Acrylic Effect
-    SaveSettings()  ; Save settings when changed
+    SaveSettings()
 return
 
 ValidateKey:
@@ -136,11 +133,9 @@ ValidateKey:
     GuiControlGet, KeyInput
     if (StrLen(KeyInput) != 1 || !RegExMatch(KeyInput, "^[a-zA-Z]$")) {
         KeyInput := SubStr(KeyInput, 1, 1)
-        GuiControl,, KeyInput, %KeyInput%
-        spamKey := KeyInput
-    } else {
-        spamKey := KeyInput
     }
+    GuiControl,, KeyInput, %KeyInput%
+    spamKey := KeyInput
 return
 
 SetDelay:
@@ -165,14 +160,17 @@ SetMode:
     Gui, Submit, NoHide
     clickMode := ClickMode
     isSpamMode := SpamMode
+
     if (clickMode = "Key") {
         GuiControl, Enable, KeyInput
     } else {
         GuiControl, Disable, KeyInput
     }
+
     if (isActive) {
         Gosub, ToggleAction
     }
+
     SaveSettings()
 return
 
@@ -182,49 +180,59 @@ ToggleAction:
         if (isSpamMode) {
             SetTimer, SpamKey, %spamDelay%
         } else {
-            if (clickMode = "Left Click") {
-                Click, down
-            } else if (clickMode = "Right Click") {
-                Click, right down
-            } else {
-                Send, {%spamKey% down}
-            }
+            SendAction("down")
         }
         GuiControl,, ToggleButton, Stop (F6)
     } else {
         if (isSpamMode) {
             SetTimer, SpamKey, Off
         } else {
-            if (clickMode = "Left Click") {
-                Click, up
-            } else if (clickMode = "Right Click") {
-                Click, right up
-            } else {
-                Send, {%spamKey% up}
-            }
+            SendAction("up")
         }
         GuiControl,, ToggleButton, Start (F6)
     }
 return
 
-SpamKey:
+SendAction(action) {
+    global clickMode, spamKey
     if (clickMode = "Left Click") {
-        Click
+        if (action = "down") {
+            Click Down
+        } else if (action = "up") {
+            Click Up
+        }
     } else if (clickMode = "Right Click") {
-        Click, right
+        if (action = "down") {
+            Click Down Right
+        } else if (action = "up") {
+            Click Up Right
+        }
     } else {
-        Send, {%spamKey%}
+        if (action = "down") {
+            Send, {%spamKey% Down}
+        } else if (action = "up") {
+            Send, {%spamKey% Up}
+        }
     }
+}
+
+SpamKey:
+    SendAction("down")
+    SleepDelay()
+    SendAction("up")
+return
+
+SleepDelay() {
+    global spamDelay, useRandomDelay, maxRandomDelay
     if (useRandomDelay) {
         Random, randomDelay, 0, maxRandomDelay
         Sleep, spamDelay + randomDelay
     } else {
         Sleep, spamDelay
     }
-return
+}
 
-F6::
-    Gosub, ToggleAction
+F6::Gosub, ToggleAction
 return
 
 ShowGUI:
@@ -236,17 +244,10 @@ GuiClose:
     ExitApp
 
 OnExit("ExitFunc")
-ExitFunc(ExitReason, ExitCode)
-{
+ExitFunc(ExitReason, ExitCode) {
     global
     if (!isSpamMode && isActive) {
-        if (clickMode = "Left Click") {
-            Click, up
-        } else if (clickMode = "Right Click") {
-            Click, right up
-        } else {
-            Send, {%spamKey% up}
-        }
+        SendAction("up")
     }
 }
 
@@ -276,6 +277,7 @@ LoadSettings() {
     IniRead, isAcrylic, %iniFile%, Settings, isAcrylic, true
 }
 
+; qwerty12 on AHK forums
 EnableBlur(gHwnd, enable := true)
 {
     ; WindowCompositionAttribute
